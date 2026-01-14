@@ -105,7 +105,7 @@ validate_template() {
     
     if az deployment group validate \
         --resource-group "$RESOURCE_GROUP" \
-        --template-file "$SCRIPT_DIR/main.bicep" \
+        --template-file "$SCRIPT_DIR/../main.bicep" \
         --parameters environmentName="$ENVIRONMENT" \
         --parameters entraClientId="$ENTRA_CLIENT_ID" \
         --parameters entraTenantId="$ENTRA_TENANT_ID" \
