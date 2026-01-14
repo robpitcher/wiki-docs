@@ -1,0 +1,53 @@
+# Azure deployment outputs
+*.json.backup
+deployment-outputs.json
+
+# Entra ID app configuration (contains sensitive IDs)
+entra-app-config.json
+
+# Local parameter overrides
+parameters.local.json
+*.parameters.dev.json
+
+# Bicep build artifacts
+*.bicepparam
+
+# Azure CLI cache
+.azure/
+
+# PowerShell logs
+*.log
+*.txt
+
+# Terraform state files (if using Terraform in future)
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Environment files
+.env
+.env.local
+*.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Secrets and certificates
+*.pfx
+*.pem
+*.key
+*.crt
+secrets.json
