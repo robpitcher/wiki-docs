@@ -9,7 +9,7 @@ on:
       - main
     paths-ignore:
       - '**.md'
-      - 'docs/**'
+
       - '.github/**'
       - '!.github/workflows/azure-static-web-app.yml'
   pull_request:
@@ -48,7 +48,7 @@ jobs:
     environment:
       name: production
       url: ${{ steps.deploy.outputs.static_web_app_url }}
-    
+
     steps:
       # ======================================================================
       # Checkout Repository
@@ -108,28 +108,28 @@ jobs:
         run: |
           # Get the deployment token from Azure
           echo "Retrieving Static Web App deployment token..."
-          
+
           # Set resource group and app name from GitHub variables or use defaults
           RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
           STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
-          
+
           if [ -z "$RESOURCE_GROUP" ] || [ -z "$STATIC_WEB_APP_NAME" ]; then
             echo "Error: AZURE_RESOURCE_GROUP and AZURE_STATIC_WEB_APP_NAME must be set as GitHub variables"
             exit 1
           fi
-          
+
           # Get deployment token
           DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
             --name "$STATIC_WEB_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --query "properties.apiKey" \
             --output tsv)
-          
+
           if [ -z "$DEPLOYMENT_TOKEN" ]; then
             echo "Error: Failed to retrieve deployment token"
             exit 1
           fi
-          
+
           echo "::add-mask::$DEPLOYMENT_TOKEN"
           echo "deployment_token=$DEPLOYMENT_TOKEN" >> $GITHUB_OUTPUT
           echo "✓ Deployment token retrieved successfully"
@@ -182,24 +182,24 @@ jobs:
           script: |
             const prNumber = context.payload.pull_request.number;
             const deploymentUrl = '${{ steps.deploy.outputs.static_web_app_url }}';
-            
+
             const comment = `## 🌐 Preview Deployment
-            
+
             Your preview deployment is ready!
-            
+
             | Property | Value |
             |----------|-------|
             | **Preview URL** | [${deploymentUrl}](${deploymentUrl}) |
             | **Environment** | Staging |
             | **Commit** | \`${context.sha.substring(0, 7)}\` |
             | **Status** | ✅ Deployed |
-            
+
             ### 🔐 Authentication Required
             This preview is protected with Entra ID authentication.
-            
+
             ---
             *Preview deployments are automatically cleaned up when the PR is closed.*`;
-            
+
             github.rest.issues.createComment({
               issue_number: prNumber,
               owner: context.repo.owner,
@@ -217,7 +217,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    
+
     steps:
       # ======================================================================
       # Azure Login via OIDC
@@ -237,13 +237,13 @@ jobs:
         run: |
           RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
           STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
-          
+
           DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
             --name "$STATIC_WEB_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --query "properties.apiKey" \
             --output tsv)
-          
+
           echo "::add-mask::$DEPLOYMENT_TOKEN"
           echo "deployment_token=$DEPLOYMENT_TOKEN" >> $GITHUB_OUTPUT
         shell: bash
