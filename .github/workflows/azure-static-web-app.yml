@@ -150,8 +150,9 @@ jobs:
           skip_app_build: true  # We already built the app
           skip_api_build: true
         env:
-          # Environment variables for Static Web App configuration
+          # Environment variables for Static Web App configuration (Bicep parameters)
           ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
 
       # ======================================================================
       # Output Deployment Information

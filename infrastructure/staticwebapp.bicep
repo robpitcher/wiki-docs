@@ -65,6 +65,16 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
   }
 }
 
+// Configure app settings for Entra ID authentication
+resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2023-12-01' = {
+  parent: staticWebApp
+  name: 'appsettings'
+  properties: {
+    ENTRA_CLIENT_ID: entraClientId
+    ENTRA_TENANT_ID: entraTenantId
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================
