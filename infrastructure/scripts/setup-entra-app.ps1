@@ -100,7 +100,7 @@ function Write-Success {
     Write-Host "✓ $Message" -ForegroundColor Green
 }
 
-function Write-Warning {
+function Write-WarningMessage {
     param([string]$Message)
     Write-Host "⚠ $Message" -ForegroundColor Yellow
 }
@@ -112,7 +112,7 @@ function Write-ErrorMessage {
 
 function Test-Prerequisites {
     Write-Step "Checking Prerequisites"
-    
+
     # Check PowerShell version
     if ($PSVersionTable.PSVersion.Major -lt 7) {
         Write-ErrorMessage "PowerShell 7.0 or higher is required. Current version: $($PSVersionTable.PSVersion)"
@@ -143,7 +143,7 @@ function Test-Prerequisites {
         Write-Information "  Tenant: $($context.Tenant.Id)"
         Write-Information "  Subscription: $($context.Subscription.Name) ($($context.Subscription.Id))"
         Write-Information "  Account: $($context.Account.Id)"
-        
+
         return $context
     }
     catch {
@@ -164,7 +164,7 @@ function New-EntraAppRegistration {
     try {
         # Create the app registration
         Write-Information "Creating app registration: $DisplayName"
-        
+
         $appParams = @{
             DisplayName = $DisplayName
             SignInAudience = "AzureADMyOrg"
@@ -212,13 +212,13 @@ function Grant-AdminConsent {
     )
 
     Write-Step "Granting Admin Consent"
-    
+
     try {
         Write-Information "Granting admin consent for API permissions..."
         Write-Warning "This requires Global Administrator or Privileged Role Administrator permissions"
-        
+
         $result = az ad app permission admin-consent --id $AppId 2>&1
-        
+
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Admin consent granted successfully"
         }
@@ -317,7 +317,7 @@ try {
     if (-not $StaticWebAppHostname) {
         Write-Information "`nNOTE: You can run this script before deploying the Static Web App."
         Write-Information "      You'll need to update the redirect URIs after deployment.`n"
-        
+
         $response = Read-Host "Do you have the Static Web App hostname? (y/n)"
         if ($response -eq 'y') {
             $StaticWebAppHostname = Read-Host "Enter the Static Web App hostname (e.g., happy-sea-123.1.azurestaticapps.net)"
