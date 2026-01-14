@@ -9,7 +9,6 @@ on:
       - main
     paths-ignore:
       - '**.md'
-
       - '.github/**'
       - '!.github/workflows/azure-static-web-app.yml'
   pull_request:
