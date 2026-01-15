@@ -1,0 +1,354 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "13179782164134153849"
+    }
+  },
+  "parameters": {
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "maxLength": 10,
+      "metadata": {
+        "description": "The environment name (e.g., dev, staging, prod)"
+      }
+    },
+    "applicationName": {
+      "type": "string",
+      "defaultValue": "wikidocs",
+      "maxLength": 20,
+      "metadata": {
+        "description": "The application name prefix"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "centralus",
+      "allowedValues": [
+        "centralus",
+        "eastus2",
+        "westus2",
+        "westeurope",
+        "eastasia"
+      ],
+      "metadata": {
+        "description": "The location for all resources"
+      }
+    },
+    "staticWebAppSku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Free",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "The SKU for the Static Web App"
+      }
+    },
+    "entraClientId": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The Entra ID (Azure AD) Client ID for authentication"
+      }
+    },
+    "entraTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Entra ID (Azure AD) Tenant ID for authentication"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Additional tags to apply to all resources"
+      }
+    }
+  },
+  "variables": {
+    "resourceSuffix": "[format('{0}-{1}-{2}', parameters('applicationName'), parameters('environmentName'), uniqueString(resourceGroup().id))]",
+    "staticWebAppName": "[format('stapp-{0}', variables('resourceSuffix'))]",
+    "allTags": "[union(parameters('tags'), createObject('Environment', parameters('environmentName'), 'Application', parameters('applicationName'), 'ManagedBy', 'Bicep', 'DeployedFrom', 'GitHub Actions', 'Purpose', 'Documentation Site'))]"
+  },
+  "resources": {
+    "staticWebApp": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "staticWebAppDeployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "staticWebAppName": {
+            "value": "[variables('staticWebAppName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "skuName": {
+            "value": "[parameters('staticWebAppSku')]"
+          },
+          "skuTier": {
+            "value": "[parameters('staticWebAppSku')]"
+          },
+          "tags": {
+            "value": "[variables('allTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "2069409903811468308"
+            }
+          },
+          "parameters": {
+            "staticWebAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Static Web App resource"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "centralus",
+              "metadata": {
+                "description": "The location for the Static Web App"
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "allowedValues": [
+                "Free",
+                "Standard"
+              ],
+              "metadata": {
+                "description": "The SKU name for the Static Web App"
+              }
+            },
+            "skuTier": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "allowedValues": [
+                "Free",
+                "Standard"
+              ],
+              "metadata": {
+                "description": "The SKU tier for the Static Web App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Static Web App resource"
+              }
+            }
+          },
+          "resources": {
+            "staticWebApp": {
+              "type": "Microsoft.Web/staticSites",
+              "apiVersion": "2023-12-01",
+              "name": "[parameters('staticWebAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "repositoryUrl": "",
+                "branch": "",
+                "buildProperties": {
+                  "appLocation": "/",
+                  "apiLocation": "",
+                  "outputLocation": "build"
+                },
+                "stagingEnvironmentPolicy": "Enabled",
+                "allowConfigFileUpdates": true,
+                "enterpriseGradeCdnStatus": "[if(equals(parameters('skuName'), 'Standard'), 'Enabled', 'Disabled')]"
+              }
+            }
+          },
+          "outputs": {
+            "staticWebAppId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Static Web App"
+              },
+              "value": "[resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName'))]"
+            },
+            "staticWebAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Static Web App"
+              },
+              "value": "[parameters('staticWebAppName')]"
+            },
+            "defaultHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "The default hostname of the Static Web App"
+              },
+              "value": "[reference('staticWebApp').defaultHostname]"
+            },
+            "deploymentToken": {
+              "type": "securestring",
+              "metadata": {
+                "description": "The deployment token for GitHub Actions (sensitive)"
+              },
+              "value": "[listSecrets('staticWebApp', '2023-12-01').properties.apiKey]"
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource group location"
+              },
+              "value": "[parameters('location')]"
+            }
+          }
+        }
+      }
+    },
+    "staticWebAppConfig": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "staticWebAppConfigDeployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "staticWebAppName": {
+            "value": "[variables('staticWebAppName')]"
+          },
+          "entraClientId": {
+            "value": "[parameters('entraClientId')]"
+          },
+          "entraTenantId": {
+            "value": "[parameters('entraTenantId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "17156726655950127521"
+            }
+          },
+          "parameters": {
+            "staticWebAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the existing Static Web App resource"
+              }
+            },
+            "entraClientId": {
+              "type": "securestring",
+              "metadata": {
+                "description": "The Entra ID (Azure AD) Client ID for authentication"
+              }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "The Entra ID (Azure AD) Tenant ID for authentication"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/staticSites/config",
+              "apiVersion": "2023-12-01",
+              "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'appsettings')]",
+              "properties": {
+                "ENTRA_CLIENT_ID": "[parameters('entraClientId')]",
+                "ENTRA_TENANT_ID": "[parameters('entraTenantId')]"
+              }
+            }
+          ],
+          "outputs": {
+            "configured": {
+              "type": "bool",
+              "metadata": {
+                "description": "Configuration applied successfully"
+              },
+              "value": true
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "staticWebApp"
+      ]
+    }
+  },
+  "outputs": {
+    "staticWebAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Static Web App"
+      },
+      "value": "[reference('staticWebApp').outputs.staticWebAppId.value]"
+    },
+    "staticWebAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Static Web App"
+      },
+      "value": "[reference('staticWebApp').outputs.staticWebAppName.value]"
+    },
+    "defaultHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "The default hostname of the Static Web App"
+      },
+      "value": "[reference('staticWebApp').outputs.defaultHostname.value]"
+    },
+    "siteUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "The URL of the deployed site"
+      },
+      "value": "[format('https://{0}', reference('staticWebApp').outputs.defaultHostname.value)]"
+    },
+    "deploymentToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The deployment token for GitHub Actions (sensitive - use for GitHub secret)"
+      },
+      "value": "[listOutputsWithSecureValues('staticWebApp', '2025-04-01').deploymentToken]"
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource group location"
+      },
+      "value": "[parameters('location')]"
+    },
+    "environment": {
+      "type": "string",
+      "metadata": {
+        "description": "Environment name"
+      },
+      "value": "[parameters('environmentName')]"
+    }
+  }
+}
