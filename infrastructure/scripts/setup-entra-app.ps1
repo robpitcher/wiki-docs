@@ -63,23 +63,23 @@ $InformationPreference = "Continue"
 
 # Required Microsoft Graph API permissions
 $RequiredResourceAccess = @{
-    ResourceAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
-    ResourceAccess = @(
+    resourceAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
+    resourceAccess = @(
         @{
-            Id = "e1fe6dd8-ba31-4d61-89e7-88639da4683d" # User.Read
-            Type = "Scope"
+            id = "e1fe6dd8-ba31-4d61-89e7-88639da4683d" # User.Read
+            type = "Scope"
         },
         @{
-            Id = "64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0" # email
-            Type = "Scope"
+            id = "64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0" # email
+            type = "Scope"
         },
         @{
-            Id = "14dad69e-099b-42c9-810b-d002981feec1" # profile
-            Type = "Scope"
+            id = "14dad69e-099b-42c9-810b-d002981feec1" # profile
+            type = "Scope"
         },
         @{
-            Id = "37f7f235-527c-4136-accd-4a02d197296e" # openid
-            Type = "Scope"
+            id = "37f7f235-527c-4136-accd-4a02d197296e" # openid
+            type = "Scope"
         }
     )
 }
@@ -165,39 +165,40 @@ function New-EntraAppRegistration {
         # Create the app registration
         Write-Information "Creating app registration: $DisplayName"
 
-        $appParams = @{
-            DisplayName = $DisplayName
-            SignInAudience = "AzureADMyOrg"
-            Web = @{
-                RedirectUris = $RedirectUris
-                ImplicitGrantSettings = @{
-                    EnableIdTokenIssuance = $true
-                    EnableAccessTokenIssuance = $true
-                }
+        # Write required resource access to a temp file to avoid PowerShell JSON escaping issues
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        try {
+            $resourceAccessJson = ConvertTo-Json -Depth 10 @($RequiredResourceAccess)
+            $resourceAccessJson | Out-File -FilePath $tempFile -Encoding utf8
+
+            # Note: Using Az CLI for app registration as Az.Resources module has limited support
+            # Pass JSON via file reference (@filepath) to avoid shell parsing issues
+            $appJson = az ad app create `
+                --display-name $DisplayName `
+                --sign-in-audience "AzureADMyOrg" `
+                --web-redirect-uris $RedirectUris `
+                --enable-id-token-issuance true `
+                --enable-access-token-issuance true `
+                --required-resource-accesses "@$tempFile" `
+                2>&1
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to create app registration: $appJson"
             }
-            RequiredResourceAccess = @($RequiredResourceAccess)
+
+            $app = $appJson | ConvertFrom-Json
+            Write-Success "App registration created successfully"
+            Write-Information "  App ID: $($app.appId)"
+            Write-Information "  Object ID: $($app.id)"
+
+            return $app
         }
-
-        # Note: Using Az CLI for app registration as Az.Resources module has limited support
-        $appJson = az ad app create `
-            --display-name $DisplayName `
-            --sign-in-audience "AzureADMyOrg" `
-            --web-redirect-uris @RedirectUris `
-            --enable-id-token-issuance true `
-            --enable-access-token-issuance true `
-            --required-resource-accesses (ConvertTo-Json -Depth 10 @($RequiredResourceAccess) -Compress) `
-            2>&1
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create app registration: $appJson"
+        finally {
+            # Clean up temp file
+            if (Test-Path $tempFile) {
+                Remove-Item $tempFile -Force
+            }
         }
-
-        $app = $appJson | ConvertFrom-Json
-        Write-Success "App registration created successfully"
-        Write-Information "  App ID: $($app.appId)"
-        Write-Information "  Object ID: $($app.id)"
-
-        return $app
     }
     catch {
         Write-ErrorMessage "Failed to create app registration: $_"
