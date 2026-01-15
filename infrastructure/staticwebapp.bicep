@@ -3,6 +3,9 @@
 // ============================================================================
 // This module creates an Azure Static Web App with Entra ID authentication
 // configured to protect the entire site.
+//
+// Note: App settings are configured separately to avoid race conditions
+// during Static Web App provisioning.
 // ============================================================================
 
 @description('The name of the Static Web App resource')
@@ -24,13 +27,6 @@ param skuName string = 'Standard'
   'Standard'
 ])
 param skuTier string = 'Standard'
-
-@description('The Entra ID (Azure AD) Client ID for authentication')
-@secure()
-param entraClientId string
-
-@description('The Entra ID (Azure AD) Tenant ID for authentication')
-param entraTenantId string
 
 @description('Tags to apply to the Static Web App resource')
 param tags object = {}
@@ -60,18 +56,8 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
     stagingEnvironmentPolicy: 'Enabled'
     // Allow only Azure AD authentication
     allowConfigFileUpdates: true
-    // Enterprise-grade features (Standard SKU)
-    enterpriseGradeCdnStatus: 'Enabled'
-  }
-}
-
-// Configure app settings for Entra ID authentication
-resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2023-12-01' = {
-  parent: staticWebApp
-  name: 'appsettings'
-  properties: {
-    ENTRA_CLIENT_ID: entraClientId
-    ENTRA_TENANT_ID: entraTenantId
+    // Enterprise-grade features (Standard SKU only)
+    enterpriseGradeCdnStatus: skuName == 'Standard' ? 'Enabled' : 'Disabled'
   }
 }
 

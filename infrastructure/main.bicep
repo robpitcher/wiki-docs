@@ -86,9 +86,24 @@ module staticWebApp 'staticwebapp.bicep' = {
     location: location
     skuName: staticWebAppSku
     skuTier: staticWebAppSku
+    tags: allTags
+  }
+}
+
+// ============================================================================
+// Module: Static Web App Configuration
+// ============================================================================
+// Deployed separately to avoid race conditions with Static Web App provisioning
+
+module staticWebAppConfig 'staticwebapp-config.bicep' = {
+  name: 'staticWebAppConfigDeployment'
+  dependsOn: [
+    staticWebApp
+  ]
+  params: {
+    staticWebAppName: staticWebAppName
     entraClientId: entraClientId
     entraTenantId: entraTenantId
-    tags: allTags
   }
 }
 
