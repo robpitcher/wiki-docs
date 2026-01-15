@@ -81,21 +81,15 @@ az ad app update \
 
 ### Step 5: Configure GitHub (2 minutes)
 
-Set these as GitHub repository variables (Settings → Secrets and variables → Actions → Variables):
+Set these as GitHub environment secrets. For the `test-infrastructure.yml` workflow, configure these in the `copilot` environment (Settings → Environments → copilot → Environment secrets):
 
-```bash
-# Option 1: Using GitHub CLI
-gh variable set AZURE_CLIENT_ID --body "<your-oidc-client-id>"
-gh variable set AZURE_TENANT_ID --body "<your-tenant-id>"
-gh variable set AZURE_SUBSCRIPTION_ID --body "<your-subscription-id>"
-gh variable set AZURE_RESOURCE_GROUP --body "rg-wikidocs-prod"
-gh variable set AZURE_STATIC_WEB_APP_NAME --body "<static-web-app-name-from-step-3>"
-gh variable set ENTRA_CLIENT_ID --body "<entra-client-id-from-step-2>"
-
-# Option 2: Manually in GitHub UI
-# Navigate to: Settings → Secrets and variables → Actions → Variables
-# Add each variable listed above
-```
+| Secret | Description | Status |
+|--------|-------------|--------|
+| `AZURE_CLIENT_ID` | OIDC Service Principal Client ID | ✅ Configured |
+| `AZURE_TENANT_ID` | Azure AD Tenant ID | ✅ Configured |
+| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | ✅ Configured |
+| `AZURE_RESOURCE_GROUP` | Resource Group Name | ✅ Configured |
+| `ENTRA_CLIENT_ID` | Entra ID App Registration Client ID | ✅ Configured |
 
 > **Important**: `AZURE_CLIENT_ID` is for GitHub OIDC authentication (GitHub → Azure), while `ENTRA_CLIENT_ID` is for user authentication (Users → Static Web App).
 
@@ -195,13 +189,8 @@ az group delete --name "rg-wikidocs-prod" --yes --no-wait
 # Delete the Entra ID app registration
 az ad app delete --id "<entra-client-id>"
 
-# Remove GitHub variables
-gh variable delete AZURE_CLIENT_ID
-gh variable delete AZURE_TENANT_ID
-gh variable delete AZURE_SUBSCRIPTION_ID
-gh variable delete AZURE_RESOURCE_GROUP
-gh variable delete AZURE_STATIC_WEB_APP_NAME
-gh variable delete ENTRA_CLIENT_ID
+# Remove GitHub environment secrets via GitHub UI:
+# Settings → Environments → copilot → Environment secrets → Delete each secret
 ```
 
 ## Next Steps

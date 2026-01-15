@@ -144,14 +144,14 @@ The script will:
 
 ### Step 2: Configure GitHub
 
-Set up the following GitHub repository variables (Settings → Secrets and variables → Actions → Variables):
+Set up the following GitHub repository secrets. For the `test-infrastructure.yml` workflow, secrets are configured in the `copilot` environment (Settings → Environments → copilot → Environment secrets):
 
 ```bash
+# Required secrets (configured in environment)
 AZURE_CLIENT_ID=<from OIDC setup>
 AZURE_TENANT_ID=<your-tenant-id>
 AZURE_SUBSCRIPTION_ID=<your-subscription-id>
 AZURE_RESOURCE_GROUP=rg-wikidocs-prod
-AZURE_STATIC_WEB_APP_NAME=<will-be-created-during-deployment>
 ENTRA_CLIENT_ID=<from-entra-app-setup>
 ```
 
@@ -333,16 +333,17 @@ All routes require authentication except `/.auth/*` endpoints.
 
 ### Environment Variables
 
-#### GitHub Actions Variables
+#### GitHub Actions Secrets
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `AZURE_CLIENT_ID` | OIDC Service Principal Client ID | ✅ |
-| `AZURE_TENANT_ID` | Azure AD Tenant ID | ✅ |
-| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | ✅ |
-| `AZURE_RESOURCE_GROUP` | Resource Group Name | ✅ |
-| `AZURE_STATIC_WEB_APP_NAME` | Static Web App Name | ✅ |
-| `ENTRA_CLIENT_ID` | Entra ID App Registration Client ID | ✅ |
+The following secrets are configured in the GitHub `copilot` environment (Settings → Environments → copilot → Environment secrets):
+
+| Secret | Description | Status |
+|--------|-------------|--------|
+| `AZURE_CLIENT_ID` | OIDC Service Principal Client ID | ✅ Configured |
+| `AZURE_TENANT_ID` | Azure AD Tenant ID | ✅ Configured |
+| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | ✅ Configured |
+| `AZURE_RESOURCE_GROUP` | Resource Group Name | ✅ Configured |
+| `ENTRA_CLIENT_ID` | Entra ID App Registration Client ID | ✅ Configured |
 
 #### Static Web App Environment Variables
 
