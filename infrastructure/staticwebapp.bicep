@@ -31,6 +31,9 @@ param skuTier string = 'Standard'
 @description('Tags to apply to the Static Web App resource')
 param tags object = {}
 
+@description('App settings for Entra ID authentication (optional)')
+param appSettings object = {}
+
 // ============================================================================
 // Resources
 // ============================================================================
@@ -59,6 +62,14 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
     // Enterprise-grade features (Standard SKU only)
     enterpriseGradeCdnStatus: skuName == 'Standard' ? 'Enabled' : 'Disabled'
   }
+}
+
+// Configure app settings as a child config resource
+// This must be done after the Static Web App is created
+resource staticWebAppConfig 'Microsoft.Web/staticSites/config@2023-12-01' = if (!empty(appSettings)) {
+  parent: staticWebApp
+  name: 'appsettings'
+  properties: appSettings
 }
 
 // ============================================================================

@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13179782164134153849"
+      "templateHash": "9241139093043792347"
     }
   },
   "parameters": {
@@ -101,6 +101,12 @@
           },
           "tags": {
             "value": "[variables('allTags')]"
+          },
+          "appSettings": {
+            "value": {
+              "ENTRA_CLIENT_ID": "[parameters('entraClientId')]",
+              "ENTRA_TENANT_ID": "[parameters('entraTenantId')]"
+            }
           }
         },
         "template": {
@@ -111,7 +117,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "2069409903811468308"
+              "templateHash": "15162034353562099061"
             }
           },
           "parameters": {
@@ -156,6 +162,13 @@
               "metadata": {
                 "description": "Tags to apply to the Static Web App resource"
               }
+            },
+            "appSettings": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "App settings for Entra ID authentication (optional)"
+              }
             }
           },
           "resources": {
@@ -181,6 +194,16 @@
                 "allowConfigFileUpdates": true,
                 "enterpriseGradeCdnStatus": "[if(equals(parameters('skuName'), 'Standard'), 'Enabled', 'Disabled')]"
               }
+            },
+            "staticWebAppConfig": {
+              "condition": "[not(empty(parameters('appSettings')))]",
+              "type": "Microsoft.Web/staticSites/config",
+              "apiVersion": "2023-12-01",
+              "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'appsettings')]",
+              "properties": "[parameters('appSettings')]",
+              "dependsOn": [
+                "staticWebApp"
+              ]
             }
           },
           "outputs": {
@@ -222,82 +245,6 @@
           }
         }
       }
-    },
-    "staticWebAppConfig": {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "staticWebAppConfigDeployment",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "staticWebAppName": {
-            "value": "[variables('staticWebAppName')]"
-          },
-          "entraClientId": {
-            "value": "[parameters('entraClientId')]"
-          },
-          "entraTenantId": {
-            "value": "[parameters('entraTenantId')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "17156726655950127521"
-            }
-          },
-          "parameters": {
-            "staticWebAppName": {
-              "type": "string",
-              "metadata": {
-                "description": "The name of the existing Static Web App resource"
-              }
-            },
-            "entraClientId": {
-              "type": "securestring",
-              "metadata": {
-                "description": "The Entra ID (Azure AD) Client ID for authentication"
-              }
-            },
-            "entraTenantId": {
-              "type": "string",
-              "metadata": {
-                "description": "The Entra ID (Azure AD) Tenant ID for authentication"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Web/staticSites/config",
-              "apiVersion": "2023-12-01",
-              "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'appsettings')]",
-              "properties": {
-                "ENTRA_CLIENT_ID": "[parameters('entraClientId')]",
-                "ENTRA_TENANT_ID": "[parameters('entraTenantId')]"
-              }
-            }
-          ],
-          "outputs": {
-            "configured": {
-              "type": "bool",
-              "metadata": {
-                "description": "Configuration applied successfully"
-              },
-              "value": true
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "staticWebApp"
-      ]
     }
   },
   "outputs": {
