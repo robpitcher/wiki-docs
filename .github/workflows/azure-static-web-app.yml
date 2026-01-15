@@ -1,0 +1,268 @@
+name: Azure Static Web App - Build and Deploy
+
+# ============================================================================
+# Workflow Triggers
+# ============================================================================
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - '!.github/workflows/azure-static-web-app.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+  workflow_dispatch:
+
+# ============================================================================
+# Permissions for OIDC Authentication
+# ============================================================================
+permissions:
+  id-token: write       # Required for OIDC authentication
+  contents: read        # Required to checkout repository
+  pull-requests: write  # Required for PR comments
+
+# ============================================================================
+# Environment Variables
+# ============================================================================
+env:
+  NODE_VERSION: '20.x'
+  BUILD_PATH: './build'
+
+# ============================================================================
+# Jobs
+# ============================================================================
+jobs:
+  # ==========================================================================
+  # Build and Deploy Job
+  # ==========================================================================
+  build_and_deploy:
+    name: Build and Deploy
+    # Only run on PR open/update or push to main (not on PR close)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.static_web_app_url }}
+
+    steps:
+      # ======================================================================
+      # Checkout Repository
+      # ======================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      # ======================================================================
+      # Setup Node.js
+      # ======================================================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # ======================================================================
+      # Install Dependencies
+      # ======================================================================
+      - name: Install dependencies
+        run: |
+          echo "Installing project dependencies..."
+          npm ci --prefer-offline --no-audit
+        shell: bash
+
+      # ======================================================================
+      # Build Docusaurus Site
+      # ======================================================================
+      - name: Build Docusaurus site
+        run: |
+          echo "Building Docusaurus documentation site..."
+          npm run build
+          echo "Build completed successfully"
+          ls -la build/
+        env:
+          NODE_ENV: production
+        shell: bash
+
+      # ======================================================================
+      # Azure Login via OIDC
+      # ======================================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ======================================================================
+      # Get Static Web App Details
+      # ======================================================================
+      - name: Get Static Web App deployment token
+        id: get_token
+        run: |
+          # Get the deployment token from Azure
+          echo "Retrieving Static Web App deployment token..."
+
+          # Set resource group and app name from GitHub variables or use defaults
+          RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
+          STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
+
+          if [ -z "$RESOURCE_GROUP" ] || [ -z "$STATIC_WEB_APP_NAME" ]; then
+            echo "Error: AZURE_RESOURCE_GROUP and AZURE_STATIC_WEB_APP_NAME must be set as GitHub variables"
+            exit 1
+          fi
+
+          # Get deployment token
+          DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
+            --name "$STATIC_WEB_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "properties.apiKey" \
+            --output tsv)
+
+          if [ -z "$DEPLOYMENT_TOKEN" ]; then
+            echo "Error: Failed to retrieve deployment token"
+            exit 1
+          fi
+
+          echo "::add-mask::$DEPLOYMENT_TOKEN"
+          echo "deployment_token=$DEPLOYMENT_TOKEN" >> $GITHUB_OUTPUT
+          echo "✓ Deployment token retrieved successfully"
+        shell: bash
+
+      # ======================================================================
+      # Deploy to Azure Static Web Apps
+      # ======================================================================
+      - name: Deploy to Azure Static Web Apps
+        id: deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.get_token.outputs.deployment_token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: '/'
+          api_location: ''
+          output_location: 'build'
+          skip_app_build: true  # We already built the app
+          skip_api_build: true
+        env:
+          # Environment variables for Static Web App configuration (Bicep parameters)
+          ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+
+      # ======================================================================
+      # Output Deployment Information
+      # ======================================================================
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "## 🚀 Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Static Web App URL:** ${{ steps.deploy.outputs.static_web_app_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed from:** \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔐 Authentication" >> $GITHUB_STEP_SUMMARY
+          echo "The site is protected with Entra ID authentication." >> $GITHUB_STEP_SUMMARY
+          echo "Users must authenticate to access the documentation." >> $GITHUB_STEP_SUMMARY
+        shell: bash
+
+      # ======================================================================
+      # Comment on Pull Request
+      # ======================================================================
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const deploymentUrl = '${{ steps.deploy.outputs.static_web_app_url }}';
+
+            const comment = `## 🌐 Preview Deployment
+
+            Your preview deployment is ready!
+
+            | Property | Value |
+            |----------|-------|
+            | **Preview URL** | [${deploymentUrl}](${deploymentUrl}) |
+            | **Environment** | Staging |
+            | **Commit** | \`${context.sha.substring(0, 7)}\` |
+            | **Status** | ✅ Deployed |
+
+            ### 🔐 Authentication Required
+            This preview is protected with Entra ID authentication.
+
+            ---
+            *Preview deployments are automatically cleaned up when the PR is closed.*`;
+
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ==========================================================================
+  # Close Pull Request Job (Cleanup)
+  # ==========================================================================
+  close_pull_request:
+    name: Close Pull Request
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      # ======================================================================
+      # Azure Login via OIDC
+      # ======================================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ======================================================================
+      # Get Static Web App Token
+      # ======================================================================
+      - name: Get Static Web App deployment token
+        id: get_token
+        run: |
+          RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
+          STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
+
+          DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
+            --name "$STATIC_WEB_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "properties.apiKey" \
+            --output tsv)
+
+          echo "::add-mask::$DEPLOYMENT_TOKEN"
+          echo "deployment_token=$DEPLOYMENT_TOKEN" >> $GITHUB_OUTPUT
+        shell: bash
+
+      # ======================================================================
+      # Close and Cleanup Staging Environment
+      # ======================================================================
+      - name: Close staging environment
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.get_token.outputs.deployment_token }}
+          action: 'close'
+
+      # ======================================================================
+      # Cleanup Summary
+      # ======================================================================
+      - name: Cleanup Summary
+        run: |
+          echo "## 🧹 Preview Environment Closed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The preview deployment for this pull request has been closed and cleaned up." >> $GITHUB_STEP_SUMMARY
+        shell: bash
