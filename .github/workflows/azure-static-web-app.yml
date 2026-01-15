@@ -77,6 +77,16 @@ jobs:
         shell: bash
 
       # ======================================================================
+      # Configure Static Web App settings
+      # ======================================================================
+      - name: Replace tenant ID in config
+        run: |
+          echo "Replacing {TENANT_ID} placeholder in staticwebapp.config.json..."
+          sed -i "s/{TENANT_ID}/${{ secrets.AZURE_TENANT_ID }}/g" staticwebapp.config.json
+          echo "✓ Configuration updated"
+        shell: bash
+
+      # ======================================================================
       # Build Docusaurus Site
       # ======================================================================
       - name: Build Docusaurus site
@@ -85,6 +95,10 @@ jobs:
           npm run build
           echo "Build completed successfully"
           ls -la build/
+          # Verify config was copied to build output
+          if [ -f build/staticwebapp.config.json ]; then
+            echo "✓ Static Web App config found in build output"
+          fi
         env:
           NODE_ENV: production
         shell: bash
@@ -152,7 +166,7 @@ jobs:
         env:
           # Environment variables for Static Web App configuration (Bicep parameters)
           ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
-          ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          ENTRA_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
       # ======================================================================
       # Output Deployment Information
