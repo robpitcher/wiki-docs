@@ -81,8 +81,8 @@ jobs:
       # ======================================================================
       - name: Replace tenant ID in config
         run: |
-          echo "Replacing {TENANT_ID} placeholder in staticwebapp.config.json..."
-          sed -i "s/{TENANT_ID}/${{ secrets.AZURE_TENANT_ID }}/g" staticwebapp.config.json
+          echo "Replacing {TENANT_ID} placeholder in static/staticwebapp.config.json..."
+          sed -i "s/{TENANT_ID}/${{ secrets.AZURE_TENANT_ID }}/g" static/staticwebapp.config.json
           echo "✓ Configuration updated"
         shell: bash
 
