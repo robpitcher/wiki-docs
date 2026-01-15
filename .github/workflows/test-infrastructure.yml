@@ -1,0 +1,380 @@
+name: Test Infrastructure Deployment
+
+# ============================================================================
+# Workflow Triggers
+# ============================================================================
+on:
+  workflow_dispatch:
+    inputs:
+      what_if:
+        description: 'Run in what-if mode (preview only, no actual deployment)'
+        required: true
+        default: true
+        type: boolean
+
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+
+# ============================================================================
+# Permissions (Least Privilege)
+# ============================================================================
+permissions:
+  id-token: write       # Required for Azure OIDC authentication
+  contents: read        # Required to checkout repository
+  pull-requests: write  # Required to post results
+
+# ============================================================================
+# Environment Variables
+# ============================================================================
+env:
+  RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  TEMPLATE_FILE: 'infrastructure/main.bicep'
+
+# ============================================================================
+# Jobs
+# ============================================================================
+jobs:
+  # ==========================================================================
+  # Validate Job - Syntax and Template Validation
+  # ==========================================================================
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+
+    steps:
+      # ======================================================================
+      # Checkout Repository
+      # ======================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ======================================================================
+      # Azure Login via OIDC
+      # ======================================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ======================================================================
+      # Validate Bicep Syntax
+      # ======================================================================
+      - name: Validate Bicep Syntax
+        id: bicep_build
+        run: |
+          echo "## 🔍 Bicep Syntax Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Build all Bicep files to check syntax
+          BUILD_OUTPUT=$(az bicep build --file ${{ env.TEMPLATE_FILE }} 2>&1) || BUILD_EXIT_CODE=$?
+
+          if [ "${BUILD_EXIT_CODE:-0}" -ne 0 ]; then
+            echo "### ❌ Syntax Validation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$BUILD_OUTPUT" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$BUILD_OUTPUT"
+            exit 1
+          fi
+
+          echo "### ✅ Syntax Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All Bicep files have valid syntax." >> $GITHUB_STEP_SUMMARY
+          echo "✓ Bicep syntax validation passed"
+        shell: bash
+
+      # ======================================================================
+      # Validate Deployment Template
+      # ======================================================================
+      - name: Validate Deployment Template
+        id: template_validate
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Template Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          VALIDATE_OUTPUT=$(az deployment group validate \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --template-file "${{ env.TEMPLATE_FILE }}" \
+            --parameters environmentName=dev \
+            --parameters applicationName=wikidocs \
+            --parameters entraClientId='${{ secrets.ENTRA_CLIENT_ID }}' \
+            --parameters entraTenantId='${{ secrets.AZURE_TENANT_ID }}' \
+            2>&1) || VALIDATE_EXIT_CODE=$?
+
+          if [ "${VALIDATE_EXIT_CODE:-0}" -ne 0 ]; then
+            echo "### ❌ Template Validation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            echo "$VALIDATE_OUTPUT" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$VALIDATE_OUTPUT"
+            exit 1
+          fi
+
+          echo "### ✅ Template Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Template is valid and ready for deployment." >> $GITHUB_STEP_SUMMARY
+          echo "✓ Template validation passed"
+        shell: bash
+
+  # ==========================================================================
+  # What-If Job - Preview Deployment Changes
+  # ==========================================================================
+  what-if:
+    name: Preview Deployment Changes
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      # ======================================================================
+      # Checkout Repository
+      # ======================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ======================================================================
+      # Azure Login via OIDC
+      # ======================================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ======================================================================
+      # Run What-If Analysis
+      # ======================================================================
+      - name: What-If Analysis
+        id: what_if
+        run: |
+          echo "## 🔮 What-If Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Preview of changes that would be made to Azure resources:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          WHATIF_OUTPUT=$(az deployment group create \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --template-file "${{ env.TEMPLATE_FILE }}" \
+            --parameters environmentName=dev \
+            --parameters applicationName=wikidocs \
+            --parameters entraClientId='${{ secrets.ENTRA_CLIENT_ID }}' \
+            --parameters entraTenantId='${{ secrets.AZURE_TENANT_ID }}' \
+            --what-if \
+            --what-if-result-format FullResourcePayloads \
+            2>&1) || WHATIF_EXIT_CODE=$?
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$WHATIF_OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if [ "${WHATIF_EXIT_CODE:-0}" -ne 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ What-If Analysis Encountered Issues" >> $GITHUB_STEP_SUMMARY
+            echo "$WHATIF_OUTPUT"
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ What-If Analysis Complete" >> $GITHUB_STEP_SUMMARY
+          echo "✓ What-if analysis completed successfully"
+        shell: bash
+
+  # ==========================================================================
+  # Deploy Job - Actual Deployment (Conditional)
+  # ==========================================================================
+  deploy:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: what-if
+    # Only deploy when:
+    # - workflow_dispatch with what_if == false, OR
+    # - pull_request event (for testing PR changes)
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.what_if == 'false') ||
+      (github.event_name == 'pull_request')
+    environment: copilot
+
+    steps:
+      # ======================================================================
+      # Checkout Repository
+      # ======================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ======================================================================
+      # Azure Login via OIDC
+      # ======================================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ======================================================================
+      # Deploy Infrastructure
+      # ======================================================================
+      - name: Deploy Infrastructure
+        id: deploy
+        run: |
+          echo "## 🚀 Infrastructure Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Started:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          DEPLOYMENT_NAME="infra-test-$(date +%Y%m%d-%H%M%S)"
+
+          DEPLOY_OUTPUT=$(az deployment group create \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --name "$DEPLOYMENT_NAME" \
+            --template-file "${{ env.TEMPLATE_FILE }}" \
+            --parameters environmentName=dev \
+            --parameters applicationName=wikidocs \
+            --parameters entraClientId='${{ secrets.ENTRA_CLIENT_ID }}' \
+            --parameters entraTenantId='${{ secrets.AZURE_TENANT_ID }}' \
+            --output json \
+            2>&1) || DEPLOY_EXIT_CODE=$?
+
+          if [ "${DEPLOY_EXIT_CODE:-0}" -ne 0 ]; then
+            echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Error Details:**" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            echo "$DEPLOY_OUTPUT" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Try to get more detailed error information
+            ERROR_DETAILS=$(az deployment group show \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --name "$DEPLOYMENT_NAME" \
+              --query "properties.error" \
+              --output json 2>&1) || true
+
+            if [ -n "$ERROR_DETAILS" ] && [ "$ERROR_DETAILS" != "null" ]; then
+              echo "**Detailed Error:**" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              echo "$ERROR_DETAILS" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "$DEPLOY_OUTPUT"
+            exit 1
+          fi
+
+          echo "### ✅ Deployment Succeeded" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Name:** \`$DEPLOYMENT_NAME\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract and display outputs
+          STATIC_WEB_APP_NAME=$(echo "$DEPLOY_OUTPUT" | jq -r '.properties.outputs.staticWebAppName.value // empty')
+          DEFAULT_HOSTNAME=$(echo "$DEPLOY_OUTPUT" | jq -r '.properties.outputs.defaultHostname.value // empty')
+          SITE_URL=$(echo "$DEPLOY_OUTPUT" | jq -r '.properties.outputs.siteUrl.value // empty')
+
+          if [ -n "$STATIC_WEB_APP_NAME" ]; then
+            echo "**Outputs:**" >> $GITHUB_STEP_SUMMARY
+            echo "| Output | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Web App Name | \`$STATIC_WEB_APP_NAME\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Default Hostname | \`$DEFAULT_HOSTNAME\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Site URL | $SITE_URL |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Set outputs for subsequent steps
+            echo "static_web_app_name=$STATIC_WEB_APP_NAME" >> $GITHUB_OUTPUT
+            echo "default_hostname=$DEFAULT_HOSTNAME" >> $GITHUB_OUTPUT
+          fi
+
+          echo "✓ Deployment completed successfully"
+        shell: bash
+
+      # ======================================================================
+      # Verify Deployment
+      # ======================================================================
+      - name: Verify Deployment
+        if: success()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔍 Deployment Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Get Static Web App name from deployment outputs or list
+          STATIC_WEB_APP_NAME="${{ steps.deploy.outputs.static_web_app_name }}"
+
+          if [ -z "$STATIC_WEB_APP_NAME" ]; then
+            echo "⚠️ Could not retrieve Static Web App name from deployment outputs" >> $GITHUB_STEP_SUMMARY
+            echo "Attempting to list Static Web Apps in resource group..." >> $GITHUB_STEP_SUMMARY
+
+            STATIC_WEB_APP_NAME=$(az staticwebapp list \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --query "[0].name" \
+              --output tsv 2>&1) || true
+          fi
+
+          if [ -n "$STATIC_WEB_APP_NAME" ] && [ "$STATIC_WEB_APP_NAME" != "null" ]; then
+            VERIFY_OUTPUT=$(az staticwebapp show \
+              --name "$STATIC_WEB_APP_NAME" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --output json \
+              2>&1) || VERIFY_EXIT_CODE=$?
+
+            if [ "${VERIFY_EXIT_CODE:-0}" -ne 0 ]; then
+              echo "### ⚠️ Verification Warning" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Could not verify Static Web App:" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "$VERIFY_OUTPUT" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            else
+              STATUS=$(echo "$VERIFY_OUTPUT" | jq -r '.properties.state // "Unknown"')
+              SKU=$(echo "$VERIFY_OUTPUT" | jq -r '.sku.name // "Unknown"')
+              HOSTNAME=$(echo "$VERIFY_OUTPUT" | jq -r '.properties.defaultHostname // "Unknown"')
+
+              echo "### ✅ Static Web App Verified" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+              echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+              echo "| Name | \`$STATIC_WEB_APP_NAME\` |" >> $GITHUB_STEP_SUMMARY
+              echo "| Status | $STATUS |" >> $GITHUB_STEP_SUMMARY
+              echo "| SKU | $SKU |" >> $GITHUB_STEP_SUMMARY
+              echo "| Hostname | \`$HOSTNAME\` |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "✓ Static Web App is operational"
+            fi
+          else
+            echo "### ⚠️ No Static Web App Found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Could not find a Static Web App in the resource group." >> $GITHUB_STEP_SUMMARY
+          fi
+        shell: bash
+
+      # ======================================================================
+      # Deployment Summary
+      # ======================================================================
+      - name: Final Summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Completed:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        shell: bash
