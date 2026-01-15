@@ -95,9 +95,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # ======================================================================
       # Get Static Web App Details
@@ -108,12 +108,12 @@ jobs:
           # Get the deployment token from Azure
           echo "Retrieving Static Web App deployment token..."
 
-          # Set resource group and app name from GitHub variables or use defaults
-          RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
-          STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
+          # Set resource group and app name from GitHub secrets
+          RESOURCE_GROUP="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          STATIC_WEB_APP_NAME="${{ secrets.AZURE_STATIC_WEB_APP_NAME }}"
 
           if [ -z "$RESOURCE_GROUP" ] || [ -z "$STATIC_WEB_APP_NAME" ]; then
-            echo "Error: AZURE_RESOURCE_GROUP and AZURE_STATIC_WEB_APP_NAME must be set as GitHub variables"
+            echo "Error: AZURE_RESOURCE_GROUP and AZURE_STATIC_WEB_APP_NAME must be set as GitHub secrets"
             exit 1
           fi
 
@@ -151,8 +151,8 @@ jobs:
           skip_api_build: true
         env:
           # Environment variables for Static Web App configuration (Bicep parameters)
-          ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
-          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
+          ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
 
       # ======================================================================
       # Output Deployment Information
@@ -225,9 +225,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # ======================================================================
       # Get Static Web App Token
@@ -235,8 +235,8 @@ jobs:
       - name: Get Static Web App deployment token
         id: get_token
         run: |
-          RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
-          STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
+          RESOURCE_GROUP="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          STATIC_WEB_APP_NAME="${{ secrets.AZURE_STATIC_WEB_APP_NAME }}"
 
           DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
             --name "$STATIC_WEB_APP_NAME" \
